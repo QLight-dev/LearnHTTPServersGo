@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,22 @@ func main() {
 		io.WriteString(w, "OK")
 	})
 
+	mux.HandleFunc("POST /api/validate_chirp", func(w http.ResponseWriter, req *http.Request) {
+		type expectedShape struct {
+			Body string `json:"body"`
+		}
+		errorResponse := struct {
+			Err string `json:"error"`
+		}{Err: "Something went wrong"}
+
+		expectedShapeDecoder := json.NewDecoder(req.Body)
+		expectedShapeVar := expectedShape{}
+		err := expectedShapeDecoder.Decode(&expectedShapeVar)
+		if err != nil {
+			res, _ := json.Marshal(errorResponse)
+			io.WriteString(w, string(res))
+		}
+	})
 	err := http.ListenAndServe(":8080", mux)
 	if err != nil {
 		panic(err)
