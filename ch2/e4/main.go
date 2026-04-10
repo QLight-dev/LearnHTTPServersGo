@@ -18,6 +18,11 @@ func (cfg *apiConfig) middlewareFileServerHitsInc(next http.Handler) http.Handle
 		next.ServeHTTP(w, req)
 	})
 }
+
+type errorResponse struct {
+	Err string `json:"error"`
+}
+
 func main() {
 	mux := http.NewServeMux()
 	var cfg apiConfig
@@ -47,18 +52,29 @@ func main() {
 		type expectedShape struct {
 			Body string `json:"body"`
 		}
-		errorResponse := struct {
-			Err string `json:"error"`
-		}{Err: "Something went wrong"}
 
 		expectedShapeDecoder := json.NewDecoder(req.Body)
-		expectedShapeVar := expectedShape{}
-		err := expectedShapeDecoder.Decode(&expectedShapeVar)
+		var body expectedShape
+		err := expectedShapeDecoder.Decode(&body)
+
 		if err != nil {
-			res, _ := json.Marshal(errorResponse)
+			res, _ := json.Marshal(errorResponse{Err: "Something went wrong"})
 			io.WriteString(w, string(res))
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
+
+		if len(body.Body) >= 140 {
+			res, _ := json.Marshal(errorResponse{Err: "Chirp is too long"})
+			io.WriteString(w, string(res))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		
+		io.WriteString(w, `{"valid":true}`)
+		w.WriteHeader(http.StatusOK)
 	})
+
 	err := http.ListenAndServe(":8080", mux)
 	if err != nil {
 		panic(err)
