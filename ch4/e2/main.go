@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -21,6 +22,18 @@ func (cfg *apiConfig) middlewareFileServerHitsInc(next http.Handler) http.Handle
 
 type errorResponse struct {
 	Err string `json:"error"`
+}
+
+func removeProfaneWords(text string) string {
+	splitString := strings.Split(text, " ")
+
+	for wordIndex, word := range splitString {
+		if strings.ToLower(word) == "kerfuffle" || strings.ToLower(word) == "sharbert" || strings.ToLower(word) == "fornax" {
+			splitString[wordIndex] = "****"
+		}
+	}
+
+	return strings.Join(splitString, " ")
 }
 
 func main() {
@@ -70,8 +83,8 @@ func main() {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		
-		io.WriteString(w, `{"valid":true}`)
+
+		fmt.Fprintf(w, `{"cleaned_body":"%v"}`, removeProfaneWords(body.Body))
 		w.WriteHeader(http.StatusOK)
 	})
 
