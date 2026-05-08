@@ -203,6 +203,10 @@ func main() {
 		w.Write(resBuf.Bytes())
 	})
 
+	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, req *http.Request) {
+		cfg.dbQueries
+	})
+
 	err = http.ListenAndServe(":8080", mux)
 	if err != nil {
 		panic(err)
