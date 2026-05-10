@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/QLight-dev/LearnHTTPServersGo/ch5/e5/internal/database"
+	"github.com/QLight-dev/LearnHTTPServersGo/ch6/e1/internal/database"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -111,6 +111,7 @@ func main() {
 	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, req *http.Request) {
 		type requestShape struct {
 			Email string `json:"email"`
+			Password string `json:"password"`
 		}
 
 		var body requestShape
@@ -121,7 +122,7 @@ func main() {
 			return
 		}
 
-		dbUser, err := cfg.dbQueries.CreateUser(req.Context(), body.Email)
+		dbUser, err := cfg.dbQueries.CreateUser(req.Context(), database.CreateUserParams{})
 		if err != nil {
 			w.WriteHeader(400)
 			w.Write([]byte(err.Error()))
@@ -203,19 +204,17 @@ func main() {
 		w.Write(resBuf.Bytes())
 	})
 
-	mux.HandleFunc("GET /api/chirps", func(w http.ResponseWriter, req *http.Request) {
-		chirps, _ := cfg.dbQueries.GetAllChirps(req.Context())
+	mux.HandleFunc("GET /api/chirps/{ChirpID}", func(w http.ResponseWriter, req *http.Request) {
+		ChirpID, err := uuid.Parse(req.PathValue("ChirpID"))
+		chirp, err := cfg.dbQueries.GetChirp(req.Context(), ChirpID)
 
-		var resData []Chirp
-		for _, chirp := range chirps {
-			resData = append(resData, Chirp{
-				ID:        chirp.ID,
-				CreatedAt: chirp.CreatedAt,
-				UpdatedAt: chirp.UpdatedAt,
-				Body:      chirp.Body,
-				UserID:    chirp.UserID,
-			})
+		if err != nil {
+			w.WriteHeader(404)
+			fmt.Fprintf(w, `{"error": "%v"}`, err.Error())
+			return
 		}
+
+		resData := chirp
 
 		var res bytes.Buffer
 		encoder := json.NewEncoder(&res)

@@ -13,5 +13,10 @@ VALUES(
 )
 RETURNING *;
 
--- name: GetAllChirps :many
-SELECT * FROM chirps ORDER BY created_at ASC;
+-- name: GetChirp :many
+SELECT
+    *
+FROM
+    chirps
+WHERE
+    user_id = $1;
