@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/QLight-dev/LearnHTTPServersGo/ch6/e1/internal/auth"
 	"github.com/QLight-dev/LearnHTTPServersGo/ch6/e1/internal/database"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -110,7 +111,7 @@ func main() {
 
 	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, req *http.Request) {
 		type requestShape struct {
-			Email string `json:"email"`
+			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
 
@@ -118,14 +119,27 @@ func main() {
 		err := json.NewDecoder(req.Body).Decode(&body)
 		if err != nil {
 			w.WriteHeader(400)
-			w.Write([]byte(err.Error()))
+			fmt.Fprintf(w, `"error":"invalid request shape"`)
 			return
 		}
 
-		dbUser, err := cfg.dbQueries.CreateUser(req.Context(), database.CreateUserParams{})
+		hashedPassword, err := auth.HashPassword(body.Password)
 		if err != nil {
 			w.WriteHeader(400)
-			w.Write([]byte(err.Error()))
+			fmt.Fprintf(w, `"error":"%v"`, err.Error())
+			return
+		}
+
+		dbUser, err := cfg.dbQueries.CreateUser(
+			req.Context(),
+			database.CreateUserParams{
+				Email:        body.Email,
+				PasswordHash: hashedPassword,
+			},
+		)
+		if err != nil {
+			w.WriteHeader(400)
+			fmt.Fprintf(w, `"error":"%v"`, err.Error())
 			return
 		}
 
@@ -144,6 +158,46 @@ func main() {
 
 		w.WriteHeader(201)
 		io.WriteString(w, string(res))
+	})
+
+	mux.HandleFunc("POST /api/login", func(w http.ResponseWriter, req *http.Request) {
+		type requestShape struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+
+		var body requestShape
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(errorResponse{Err: "invalid request shape"})
+			return
+		}
+
+		dbUser, err := cfg.dbQueries.GetUser(req.Context(), body.Email)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(errorResponse{Err: "Incorrect email or password"})
+			return
+		}
+
+		ok, err := auth.CheckPasswordHash(body.Password, dbUser.PasswordHash)
+		if err != nil || !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(errorResponse{Err: "Incorrect email or password"})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(User{
+			ID:        dbUser.ID,
+			CreatedAt: dbUser.CreatedAt,
+			UpdatedAt: dbUser.UpdatedAt,
+			Email:     dbUser.Email,
+		})
 	})
 
 	mux.HandleFunc("POST /api/chirps", func(w http.ResponseWriter, req *http.Request) {
@@ -214,7 +268,13 @@ func main() {
 			return
 		}
 
-		resData := chirp
+		resData := Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		}
 
 		var res bytes.Buffer
 		encoder := json.NewEncoder(&res)

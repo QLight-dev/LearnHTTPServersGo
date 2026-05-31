@@ -13,7 +13,7 @@ VALUES(
 )
 RETURNING *;
 
--- name: GetChirp :many
+-- name: GetChirp :one
 SELECT
     *
 FROM
